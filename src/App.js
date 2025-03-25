@@ -57,19 +57,19 @@ export default function JobApplicantsVisualizer() {
     };
 
     // Adds current applicant to list of selected
-    const selectApplicant = () => {
+    const selectApplicant = (applicant, role) => () => {
         // Error checking
-        if (!roles.has(activeRole)) {
+        if (!roles.has(role)) {
             return;
         }
 
         // Duplicate lists for setting useStates
         const newRoles = new Map(roles);
-        const selected = new Set(roles.get(activeRole));
+        const selected = new Set(roles.get(role));
 
         // Add selectedApplicant to list
-        selected.add(selectedApplicant);
-        newRoles.set(activeRole, selected);
+        selected.add(applicant);
+        newRoles.set(role, selected);
         setRoles(newRoles);
 
         onClose();
@@ -324,40 +324,83 @@ export default function JobApplicantsVisualizer() {
                                                     .includes(activeRole))
                                     )
                                     .map(([name, responses]) => (
-                                        <Card
+                                        <Box
+                                            position="relative"
                                             key={name}
-                                            size="lg"
-                                            className="p-4 shadow-lg rounded-2xl"
-                                            border="2px solid"
-                                            borderColor="#a100ff"
-                                            borderRadius={10}
-                                            backgroundColor="white"
-                                            boxShadow="0 10px 15px -3px rgba(161, 0, 255, 0.3), 0 4px 6px -2px rgba(161, 0, 255, 0.05)"
-                                            opacity="65%"
                                             _hover={{
-                                                opacity: "100%",
-                                                transform: "translateY(-2px)",
-                                                boxShadow: "lg",
+                                                "& .select-button": {
+                                                    opacity: 1,
+                                                    visibility: "visible",
+                                                },
                                             }}
-                                            _active={{
-                                                opacity: "100%",
-                                                transform: "translateY(-1px)",
-                                                boxShadow: "lg",
-                                            }}
-                                            transition="all 0.2s ease-in-out"
-                                            onClick={openModal(name)}
                                         >
-                                            <CardHeader>
-                                                <Heading
-                                                    size="md"
-                                                    color={COLORS[2]}
-                                                    textAlign="center"
-                                                    userSelect="none"
-                                                >
-                                                    {name}
-                                                </Heading>
-                                            </CardHeader>
-                                        </Card>
+                                            <Card
+                                                key={name}
+                                                size="lg"
+                                                className="p-4 shadow-lg rounded-2xl"
+                                                border="2px solid"
+                                                borderColor="#a100ff"
+                                                borderRadius={10}
+                                                backgroundColor="white"
+                                                boxShadow="0 10px 15px -3px rgba(161, 0, 255, 0.3), 0 4px 6px -2px rgba(161, 0, 255, 0.05)"
+                                                opacity="65%"
+                                                _hover={{
+                                                    opacity: "100%",
+                                                    transform:
+                                                        "translateY(-2px)",
+                                                    boxShadow: "lg",
+                                                }}
+                                                _active={{
+                                                    opacity: "100%",
+                                                    transform:
+                                                        "translateY(-1px)",
+                                                    boxShadow: "lg",
+                                                }}
+                                                transition="all 0.2s ease-in-out"
+                                                onClick={openModal(name)}
+                                            >
+                                                <CardHeader>
+                                                    <Heading
+                                                        size="md"
+                                                        color={COLORS[2]}
+                                                        textAlign="center"
+                                                        userSelect="none"
+                                                    >
+                                                        {name}
+                                                    </Heading>
+                                                </CardHeader>
+                                            </Card>
+                                            <Button
+                                                className="select-button"
+                                                position="absolute"
+                                                top="75%"
+                                                left="50%"
+                                                transform="translate(-50%, -25%)"
+                                                opacity={0}
+                                                visibility="hidden"
+                                                transition="all 0.2s"
+                                                colorScheme="purple"
+                                                onClick={
+                                                    roles.has(activeRole) &&
+                                                    roles
+                                                        .get(activeRole)
+                                                        .has(name)
+                                                        ? unselectApplicant(
+                                                              name,
+                                                              activeRole
+                                                          )
+                                                        : selectApplicant(
+                                                              name,
+                                                              activeRole
+                                                          )
+                                                }
+                                            >
+                                                {roles.has(activeRole) &&
+                                                roles.get(activeRole).has(name)
+                                                    ? "Unselect"
+                                                    : "Select"}
+                                            </Button>
+                                        </Box>
                                     ))}
                             </Flex>
                         </VStack>
@@ -448,7 +491,10 @@ export default function JobApplicantsVisualizer() {
                             <Button
                                 colorScheme="green"
                                 mr={3}
-                                onClick={selectApplicant}
+                                onClick={selectApplicant(
+                                    selectedApplicant,
+                                    activeRole
+                                )}
                             >
                                 Select
                             </Button>
