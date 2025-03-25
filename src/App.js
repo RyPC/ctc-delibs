@@ -342,19 +342,34 @@ export default function JobApplicantsVisualizer() {
                                                 borderColor="#a100ff"
                                                 borderRadius={10}
                                                 backgroundColor="white"
-                                                boxShadow="0 10px 15px -3px rgba(161, 0, 255, 0.3), 0 4px 6px -2px rgba(161, 0, 255, 0.05)"
+                                                boxShadow={
+                                                    roles.has(activeRole) &&
+                                                    (roles
+                                                        .get(activeRole)
+                                                        .has(name)
+                                                        ? "0 0px 15px 0px rgba(0, 255, 0)"
+                                                        : new Set(
+                                                              [
+                                                                  ...roles.values(),
+                                                              ].flatMap(
+                                                                  (set) => [
+                                                                      ...set,
+                                                                  ]
+                                                              )
+                                                          ).has(name)
+                                                        ? "0 0px 15px 0px rgba(255, 0, 0)"
+                                                        : "0 10px 15px -3px rgba(161, 0, 255, 0.3), 0 4px 6px -2px rgba(161, 0, 255, 0.05)")
+                                                }
                                                 opacity="65%"
                                                 _hover={{
                                                     opacity: "100%",
                                                     transform:
                                                         "translateY(-2px)",
-                                                    boxShadow: "lg",
                                                 }}
                                                 _active={{
                                                     opacity: "100%",
                                                     transform:
                                                         "translateY(-1px)",
-                                                    boxShadow: "lg",
                                                 }}
                                                 transition="all 0.2s ease-in-out"
                                                 onClick={openModal(name)}
