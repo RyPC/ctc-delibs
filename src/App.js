@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
     Box,
     Flex,
@@ -18,6 +18,7 @@ import {
     Card,
     CardBody,
     CardHeader,
+    Tooltip,
     Heading,
 } from "@chakra-ui/react";
 import Papa from "papaparse";
@@ -35,8 +36,8 @@ export default function JobApplicantsVisualizer() {
     // All applicants
     const [applicants, setApplicants] = useState(new Set());
 
-    // Available roles
-    const [roles, setRoles] = useState(new Set());
+    // Available roles mapping to potential applicants
+    const [roles, setRoles] = useState(new Map());
 
     // Selected applicant for modal info
     const [selectedApplicant, setSelectedApplicant] = useState(null);
@@ -55,6 +56,47 @@ export default function JobApplicantsVisualizer() {
         };
     };
 
+    // Adds current applicant to list of selected
+    const selectApplicant = () => {
+        // Error checking
+        if (!roles.has(activeRole)) {
+            return;
+        }
+
+        // Duplicate lists for setting useStates
+        const newRoles = new Map(roles);
+        const selected = new Set(roles.get(activeRole));
+
+        // Add selectedApplicant to list
+        selected.add(selectedApplicant);
+        newRoles.set(activeRole, selected);
+        setRoles(newRoles);
+
+        onClose();
+    };
+
+    // Removes current applicant from list of selected
+    const unselectApplicant = (applicant, role) => () => {
+        // Error checking
+        if (!roles.has(role) || !roles.get(role).has(applicant)) {
+            console.log(roles.get(role));
+            console.log(applicant);
+            return;
+        }
+
+        // Duplicate lists for setting useStates
+        const newRoles = new Map(roles);
+        const selected = new Set(roles.get(role));
+
+        // Remove selectedApplicant from list
+        selected.delete(applicant);
+        newRoles.set(role, selected);
+        setRoles(newRoles);
+
+        onClose();
+    };
+
+    // Redirection from onOpen to populate content from applicant
     const openModal = (name) => () => {
         setSelectedApplicant(name);
         onOpen();
@@ -88,7 +130,7 @@ export default function JobApplicantsVisualizer() {
                 const keys = parsedData[0].slice(2);
 
                 // Set of roles
-                const newRoles = new Set();
+                const newRoles = new Map();
 
                 // Create map of names to info
                 const nameMap = new Map();
@@ -111,7 +153,7 @@ export default function JobApplicantsVisualizer() {
                         if (infoMap.has(key)) {
                             const addedRoles = infoMap.get(key).split(";");
                             addedRoles.forEach((role) => {
-                                newRoles.add(role);
+                                newRoles.set(role, new Set());
                             });
                         }
                     });
@@ -164,7 +206,7 @@ export default function JobApplicantsVisualizer() {
                                 Board Positions
                             </Heading>
                             <Flex align="start" gap={4} wrap="wrap">
-                                {[...roles].map((role) => (
+                                {[...roles].map(([role, _]) => (
                                     <Card
                                         key={role}
                                         size="lg"
@@ -203,6 +245,55 @@ export default function JobApplicantsVisualizer() {
                                                 {role}
                                             </Heading>
                                         </CardHeader>
+                                        {roles.get(role).size > 0 && (
+                                            <CardBody pt={0}>
+                                                <VStack spacing={0}>
+                                                    <Text fontWeight="bold">
+                                                        Selected
+                                                    </Text>
+                                                    {[...roles.get(role)].map(
+                                                        (applicant) => (
+                                                            <>
+                                                                <Tooltip
+                                                                    selectedApplicant
+                                                                    label="Remove"
+                                                                    aria-label="A tooltip"
+                                                                    placement="left"
+                                                                >
+                                                                    <Box
+                                                                        p={2}
+                                                                        m={0}
+                                                                        bg="gray.300"
+                                                                        fontFamily="Inter, sans-serif"
+                                                                        borderRadius={
+                                                                            10
+                                                                        }
+                                                                        margin={
+                                                                            15
+                                                                        }
+                                                                        _hover={{
+                                                                            opacity:
+                                                                                "50%",
+                                                                        }}
+                                                                        transition="all 0.2s ease-in-out"
+                                                                        onClick={unselectApplicant(
+                                                                            applicant,
+                                                                            role
+                                                                        )}
+                                                                    >
+                                                                        <Text userSelect="none">
+                                                                            {
+                                                                                applicant
+                                                                            }
+                                                                        </Text>
+                                                                    </Box>
+                                                                </Tooltip>
+                                                            </>
+                                                        )
+                                                    )}
+                                                </VStack>
+                                            </CardBody>
+                                        )}
                                     </Card>
                                 ))}
                             </Flex>
@@ -341,9 +432,27 @@ export default function JobApplicantsVisualizer() {
                     </ModalBody>
 
                     <ModalFooter>
-                        <Button colorScheme="green" mr={3} onClick={onClose}>
-                            Select
-                        </Button>
+                        {roles.has(activeRole) &&
+                        roles.get(activeRole).has(selectedApplicant) ? (
+                            <Button
+                                colorScheme="blue"
+                                mr={3}
+                                onClick={unselectApplicant(
+                                    selectedApplicant,
+                                    activeRole
+                                )}
+                            >
+                                Unselect
+                            </Button>
+                        ) : (
+                            <Button
+                                colorScheme="green"
+                                mr={3}
+                                onClick={selectApplicant}
+                            >
+                                Select
+                            </Button>
+                        )}
                         <Button colorScheme="purple" mr={3} onClick={onClose}>
                             Close
                         </Button>
