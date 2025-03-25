@@ -1,158 +1,355 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
     Box,
-    Button,
+    Flex,
     Text,
+    Button,
+    Modal,
+    ModalOverlay,
+    ModalContent,
+    ModalHeader,
+    ModalFooter,
+    ModalBody,
+    ModalCloseButton,
+    Divider,
+    useDisclosure,
     VStack,
     HStack,
     Card,
     CardBody,
+    CardHeader,
     Heading,
-    useToast,
 } from "@chakra-ui/react";
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
+import Papa from "papaparse";
 
-const applicantsData = [
-    { name: "Alice Johnson", roles: ["Software Engineer", "Data Analyst"] },
-    { name: "Bob Smith", roles: ["Software Engineer", "Product Manager"] },
-    { name: "Charlie Brown", roles: ["Data Analyst", "UX Designer"] },
+const COLORS = ["#740aff", "#5a00d1", "#4d02b0"];
+
+const ROLE_KEYS = [
+    "What role(s) are you interested in? Please choose up to 2.",
+    "What role are you applying for?",
 ];
 
-const COLORS = ["#7D3C98", "#9B59B6", "#BB8FCE", "#D2B4DE"];
-
 export default function JobApplicantsVisualizer() {
-    const [selectedApplicants, setSelectedApplicants] = useState(new Set());
-    const toast = useToast();
+    const { isOpen, onOpen, onClose } = useDisclosure();
 
-    const handleSelectApplicant = (name) => {
-        setSelectedApplicants((prev) => new Set(prev).add(name));
-        toast({
-            title: `${name} selected`,
-            status: "success",
-            duration: 2000,
-            isClosable: true,
+    // All applicants
+    const [applicants, setApplicants] = useState(new Set());
+
+    // Available roles
+    const [roles, setRoles] = useState(new Set());
+
+    // Selected applicant for modal info
+    const [selectedApplicant, setSelectedApplicant] = useState(null);
+
+    // Role currently being looked at
+    const [activeRole, setActiveRole] = useState("");
+
+    // const handleSelectApplicant = (name) => {
+    //     setSelectedApplicants((prev) => new Set(prev).add(name));
+    // };
+
+    // Returns a function that will select the role
+    const selectRole = (role) => {
+        return () => {
+            setActiveRole(role);
+        };
+    };
+
+    const openModal = (name) => () => {
+        setSelectedApplicant(name);
+        onOpen();
+    };
+    // Handles uploading file from user
+    const handleFileUpload = (event) => {
+        const file = event.target.files[0]; // Get the uploaded file
+        if (file) {
+            readFile(file); // Call readFile to read the file content
+        }
+    };
+
+    const readFile = (file) => {
+        const reader = new FileReader();
+
+        reader.onload = () => {
+            const csvContent = reader.result; // Get the file content as text
+            parseCSV(csvContent); // Call parseCSV to parse the content
+        };
+
+        reader.readAsText(file); // Read the file as text
+    };
+
+    // Parses CSV to create map of apps (people to responses(map))
+    const parseCSV = (csvContent) => {
+        Papa.parse(csvContent, {
+            complete: (result) => {
+                const parsedData = result.data;
+
+                // Find keys of everything after name
+                const keys = parsedData[0].slice(2);
+
+                // Set of roles
+                const newRoles = new Set();
+
+                // Create map of names to info
+                const nameMap = new Map();
+                parsedData.forEach((row, index) => {
+                    if (index === 0) return;
+
+                    // First column = timestamp
+                    // Second column = name (key)
+                    const key = row[1];
+                    const values = row.slice(2);
+
+                    // Create map of info
+                    const infoMap = new Map();
+                    values.forEach((value, index) => {
+                        infoMap.set(keys[index], value);
+                    });
+
+                    // Add to roles useState
+                    ROLE_KEYS.forEach((key) => {
+                        if (infoMap.has(key)) {
+                            const addedRoles = infoMap.get(key).split(";");
+                            addedRoles.forEach((role) => {
+                                newRoles.add(role);
+                            });
+                        }
+                    });
+
+                    nameMap.set(key, infoMap);
+                });
+
+                console.log(nameMap);
+
+                setRoles(newRoles);
+                setApplicants(nameMap);
+            },
+            header: false, // Skip headers in CSV
         });
     };
 
-    const roleCounts = applicantsData
-        .flatMap((a) => a.roles)
-        .reduce((acc, role) => {
-            acc[role] = (acc[role] || 0) + 1;
-            return acc;
-        }, {});
-
-    const pieData = Object.keys(roleCounts).map((role, index) => ({
-        name: role,
-        value: roleCounts[role],
-        fill: COLORS[index % COLORS.length],
-    }));
-
     return (
-        <Box p={6} bg="gray.50" minH="100vh" fontFamily="Inter, sans-serif">
-            <Heading size="xl" color="purple.600" mb={6}>
-                Job Applicants Overview
-            </Heading>
-            <HStack align="start" spacing={8}>
-                <VStack align="start" spacing={4} flex={1}>
-                    <Heading size="md" color="purple.500">
-                        Applicant List
-                    </Heading>
-                    <VStack align="start" spacing={4} w="full">
-                        {[
-                            ...new Set(applicantsData.flatMap((a) => a.roles)),
-                        ].map((role) => (
-                            <Card
-                                key={role}
-                                w="full"
-                                p={4}
-                                borderLeft="4px solid"
-                                borderColor="purple.500"
-                            >
-                                <CardBody>
-                                    <Heading
-                                        size="sm"
-                                        color="purple.700"
-                                        mb={2}
+        <>
+            {/* BACKGROUND */}
+            <img
+                src="ctclogo.svg"
+                alt="CTC Logo"
+                style={{
+                    position: "fixed",
+                    left: "50%",
+                    top: "50%",
+                    transform: "translate(-50%, -50%)",
+                    height: "60%",
+                    opacity: "65%",
+                    userSelect: "none",
+                    pointerEvents: "none",
+                }}
+            />
+            <Box
+                p={6}
+                bg="gray.50"
+                minH="100vh"
+                fontFamily="Inter, sans-serif"
+                margin={15}
+            >
+                <Heading size="xl" color={COLORS[1]} mb={6}>
+                    CTC Board Deliberations
+                </Heading>
+
+                {/* FOR UPLOADING CSV */}
+                {applicants.size > 0 ? (
+                    <HStack align="start" spacing={8}>
+                        <VStack align="start" spacing={4} flex={1}>
+                            <Heading size="lg" color={COLORS[0]}>
+                                Board Positions
+                            </Heading>
+                            <Flex align="start" gap={4} wrap="wrap">
+                                {[...roles].map((role) => (
+                                    <Card
+                                        key={role}
+                                        size="lg"
+                                        w="40%"
+                                        border="4px solid"
+                                        borderRadius={20}
+                                        borderColor={COLORS[0]}
+                                        backgroundColor="white"
+                                        boxShadow="lg"
+                                        opacity={
+                                            activeRole === role ? "100%" : "65%"
+                                        }
+                                        transform={
+                                            activeRole === role
+                                                ? "scale(1.025)"
+                                                : "scale(1)"
+                                        }
+                                        _hover={{
+                                            opacity: "100%",
+                                            transform: "scale(1.05)",
+                                        }}
+                                        _active={{
+                                            opacity: "100%",
+                                            transform: "scale(1.025)",
+                                        }}
+                                        transition="all 0.2s ease-in-out"
+                                        onClick={selectRole(role)}
                                     >
-                                        {role}
-                                    </Heading>
-                                    <VStack align="start" spacing={2}>
-                                        {applicantsData
-                                            .filter((applicant) =>
-                                                applicant.roles.includes(role)
-                                            )
-                                            .map((applicant) => (
-                                                <HStack
-                                                    key={applicant.name}
-                                                    justify="space-between"
-                                                    w="full"
-                                                >
-                                                    <Text
-                                                        textDecoration={
-                                                            selectedApplicants.has(
-                                                                applicant.name
-                                                            )
-                                                                ? "line-through"
-                                                                : "none"
-                                                        }
-                                                        color={
-                                                            selectedApplicants.has(
-                                                                applicant.name
-                                                            )
-                                                                ? "gray.400"
-                                                                : "black"
-                                                        }
-                                                    >
-                                                        {applicant.name}
-                                                    </Text>
-                                                    {!selectedApplicants.has(
-                                                        applicant.name
-                                                    ) && (
-                                                        <Button
-                                                            size="sm"
-                                                            colorScheme="purple"
-                                                            onClick={() =>
-                                                                handleSelectApplicant(
-                                                                    applicant.name
-                                                                )
-                                                            }
-                                                        >
-                                                            Select
-                                                        </Button>
-                                                    )}
-                                                </HStack>
-                                            ))}
-                                    </VStack>
-                                </CardBody>
-                            </Card>
-                        ))}
-                    </VStack>
-                </VStack>
-                <Box flex={1} bg="white" p={4} borderRadius="lg" shadow="md">
-                    <Heading size="md" color="purple.500" mb={4}>
-                        Role Distribution
-                    </Heading>
-                    <ResponsiveContainer width="100%" height={300}>
-                        <PieChart>
-                            <Pie
-                                data={pieData}
-                                cx="50%"
-                                cy="50%"
-                                outerRadius={100}
-                                dataKey="value"
-                            >
-                                {pieData.map((entry, index) => (
-                                    <Cell
-                                        key={`cell-${index}`}
-                                        fill={entry.fill}
-                                    />
+                                        <CardHeader>
+                                            <Heading
+                                                size="md"
+                                                color={COLORS[2]}
+                                                margin={2}
+                                                userSelect="none"
+                                            >
+                                                {role}
+                                            </Heading>
+                                        </CardHeader>
+                                    </Card>
                                 ))}
-                            </Pie>
-                            <Tooltip />
-                        </PieChart>
-                    </ResponsiveContainer>
-                </Box>
-            </HStack>
-        </Box>
+                            </Flex>
+                        </VStack>
+                        <VStack flex={1}>
+                            <Box>
+                                <Heading size="lg" color={COLORS[0]} mb={4}>
+                                    {activeRole + " Applicants"}
+                                </Heading>
+                            </Box>
+                            <Flex
+                                wrap="wrap"
+                                gap={4}
+                                justify="center"
+                                flexDirection="row"
+                                marginTop={50}
+                            >
+                                {[...applicants]
+                                    .filter(
+                                        ([name, responses]) =>
+                                            (responses.has(ROLE_KEYS[0]) &&
+                                                responses
+                                                    .get(ROLE_KEYS[0])
+                                                    .includes(activeRole)) ||
+                                            (responses.has(ROLE_KEYS[1]) &&
+                                                responses
+                                                    .get(ROLE_KEYS[1])
+                                                    .includes(activeRole))
+                                    )
+                                    .map(([name, responses]) => (
+                                        <Card
+                                            key={name}
+                                            size="lg"
+                                            className="p-4 shadow-lg rounded-2xl"
+                                            border="2px solid"
+                                            borderColor="#a100ff"
+                                            borderRadius={10}
+                                            backgroundColor="white"
+                                            boxShadow="0 10px 15px -3px rgba(161, 0, 255, 0.3), 0 4px 6px -2px rgba(161, 0, 255, 0.05)"
+                                            opacity="65%"
+                                            _hover={{
+                                                opacity: "100%",
+                                                transform: "translateY(-2px)",
+                                                boxShadow: "lg",
+                                            }}
+                                            _active={{
+                                                opacity: "100%",
+                                                transform: "translateY(-1px)",
+                                                boxShadow: "lg",
+                                            }}
+                                            transition="all 0.2s ease-in-out"
+                                            onClick={openModal(name)}
+                                        >
+                                            <CardHeader>
+                                                <Heading
+                                                    size="md"
+                                                    color={COLORS[2]}
+                                                    textAlign="center"
+                                                    userSelect="none"
+                                                >
+                                                    {name}
+                                                </Heading>
+                                            </CardHeader>
+                                        </Card>
+                                    ))}
+                            </Flex>
+                        </VStack>
+                    </HStack>
+                ) : (
+                    <Box>
+                        <VStack>
+                            <Heading size="xl" color={COLORS[0]} mb={6}>
+                                Upload .csv file
+                            </Heading>
+                            <Flex
+                                wrap="wrap"
+                                gap={4}
+                                justify="center"
+                                flexDirection="row"
+                                marginTop={50}
+                            >
+                                <input
+                                    type="file"
+                                    accept=".csv"
+                                    onChange={handleFileUpload}
+                                    className="mb-4"
+                                />
+                            </Flex>
+                        </VStack>
+                    </Box>
+                )}
+            </Box>
+
+            <Modal isOpen={isOpen} onClose={onClose} size={"3xl"}>
+                <ModalOverlay />
+                <ModalContent>
+                    <ModalHeader>{selectedApplicant}</ModalHeader>
+                    <ModalCloseButton />
+                    <ModalBody>
+                        <VStack
+                            spacing={5}
+                            align="stretch"
+                            width="full"
+                            divider={<Divider borderColor={COLORS[1]} />}
+                        >
+                            {applicants.has(selectedApplicant) &&
+                                [...applicants.get(selectedApplicant)].map(
+                                    ([question, response], index) => (
+                                        <Flex
+                                            key={index}
+                                            direction="column"
+                                            bg="gray.50"
+                                            p={4}
+                                            borderRadius="md"
+                                            boxShadow="sm"
+                                        >
+                                            <Text
+                                                fontWeight="bold"
+                                                color={COLORS[0]}
+                                                mb={2}
+                                                fontSize="md"
+                                            >
+                                                {question}
+                                            </Text>
+                                            <Text
+                                                color="gray.700"
+                                                lineHeight="tall"
+                                                whiteSpace="pre-wrap"
+                                            >
+                                                {response}
+                                            </Text>
+                                        </Flex>
+                                    )
+                                )}
+                        </VStack>
+                    </ModalBody>
+
+                    <ModalFooter>
+                        <Button colorScheme="green" mr={3} onClick={onClose}>
+                            Select
+                        </Button>
+                        <Button colorScheme="purple" mr={3} onClick={onClose}>
+                            Close
+                        </Button>
+                    </ModalFooter>
+                </ModalContent>
+            </Modal>
+        </>
     );
 }
