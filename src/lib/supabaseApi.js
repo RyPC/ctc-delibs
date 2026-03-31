@@ -214,45 +214,6 @@ export async function fetchApplicantResponses(applicantId) {
     return rows.map((r) => [r.question_key, r.response]);
 }
 
-export async function loadPublishedSelections(datasetId) {
-    if (!isSupabaseConfigured()) return new Map();
-    const { data, error } = await supabase
-        .from("published_selections")
-        .select("role_name, applicant_id")
-        .eq("dataset_id", datasetId);
-    if (error) throw error;
-
-    const out = new Map(); // role_name -> Set(applicant_id)
-    (data || []).forEach((row) => {
-        const role = row.role_name;
-        if (!out.has(role)) out.set(role, new Set());
-        out.get(role).add(row.applicant_id);
-    });
-    return out;
-}
-
-export async function publishRoleSelections(datasetId, roleName, applicantIds) {
-    if (!isSupabaseConfigured()) throw new Error("Supabase not configured");
-
-    // Replace the role's rows for this dataset.
-    const { error: delErr } = await supabase
-        .from("published_selections")
-        .delete()
-        .eq("dataset_id", datasetId)
-        .eq("role_name", roleName);
-    if (delErr) throw delErr;
-
-    if (!applicantIds || applicantIds.length === 0) return;
-
-    const rows = applicantIds.map((id) => ({
-        dataset_id: datasetId,
-        role_name: roleName,
-        applicant_id: id,
-    }));
-    const { error: insErr } = await supabase.from("published_selections").insert(rows);
-    if (insErr) throw insErr;
-}
-
 export async function importCsvAsNewCurrentDataset(files) {
     if (!isSupabaseConfigured()) throw new Error("Supabase not configured");
 

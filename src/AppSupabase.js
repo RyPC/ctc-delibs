@@ -28,8 +28,6 @@ import {
     fetchRolesForDataset,
     getCurrentDatasetId,
     importCsvAsNewCurrentDataset,
-    loadPublishedSelections,
-    publishRoleSelections,
     ROLE_KEYS,
 } from "./lib/supabaseApi";
 import { isSupabaseConfigured, supabase } from "./supabaseClient";
@@ -63,12 +61,10 @@ export default function AppSupabase() {
     const [activeRole, setActiveRole] = useState("");
     const [candidates, setCandidates] = useState([]); // {id,name} for active role
 
-    // Draft is per-viewer; published is shared (realtime).
+    // Selections are local per viewer.
     const [draftSelectionsByRole, setDraftSelectionsByRole] = useState(
         emptyMap()
     ); // roleName -> Set(applicantId)
-    const [publishedSelectionsByRole, setPublishedSelectionsByRole] =
-        useState(emptyMap()); // roleName -> Set(applicantId)
 
     // Modal state
     const [selectedApplicantId, setSelectedApplicantId] = useState(null);
@@ -77,18 +73,8 @@ export default function AppSupabase() {
 
     const [initialLoading, setInitialLoading] = useState(true);
     const [importing, setImporting] = useState(false);
-    const [publishing, setPublishing] = useState(false);
     const [modalLoading, setModalLoading] = useState(false);
-    const [clearingPublished, setClearingPublished] = useState(false);
     const [importError, setImportError] = useState(null);
-
-    const publishedApplicantIds = useMemo(() => {
-        const ids = new Set();
-        for (const set of publishedSelectionsByRole.values()) {
-            for (const id of set) ids.add(id);
-        }
-        return ids;
-    }, [publishedSelectionsByRole]);
 
     const draftApplicantIds = useMemo(() => {
         const ids = new Set();
@@ -148,9 +134,8 @@ export default function AppSupabase() {
 
             setImportError(null);
 
-            const [rolesList, publishedMap] = await Promise.all([
+            const [rolesList] = await Promise.all([
                 fetchRolesForDataset(currentDatasetId),
-                loadPublishedSelections(currentDatasetId),
             ]);
 
             // Load all applicant ids->names so role cards can render lists.
@@ -162,7 +147,6 @@ export default function AppSupabase() {
 
             if (!alive) return;
             setRoles(rolesList);
-            setPublishedSelectionsByRole(publishedMap);
 
             const nameMap = new Map();
             (allApplicants || []).forEach((a) => nameMap.set(a.id, a.name));
@@ -211,47 +195,6 @@ export default function AppSupabase() {
             alive = false;
         };
     }, [currentDatasetId, activeRole]);
-
-    // Realtime: keep published selections in sync
-    useEffect(() => {
-        if (!currentDatasetId || !supabase) return;
-
-        let disposed = false;
-        let debounceTimer = null;
-
-        async function refreshPublished() {
-            if (disposed) return;
-            const next = await loadPublishedSelections(currentDatasetId);
-            if (disposed) return;
-            setPublishedSelectionsByRole(next);
-        }
-
-        const channel = supabase
-            .channel(`published_selections_${currentDatasetId}`)
-            .on(
-                "postgres_changes",
-                {
-                    event: "*",
-                    schema: "public",
-                    table: "published_selections",
-                    filter: `dataset_id=eq.${currentDatasetId}`,
-                },
-                () => {
-                    if (debounceTimer) clearTimeout(debounceTimer);
-                    debounceTimer = setTimeout(refreshPublished, 200);
-                }
-            )
-            .subscribe();
-
-        // Ensure we have the latest on subscription start.
-        refreshPublished().catch(() => {});
-
-        return () => {
-            disposed = true;
-            if (debounceTimer) clearTimeout(debounceTimer);
-            supabase.removeChannel(channel);
-        };
-    }, [currentDatasetId]);
 
     const selectRole = (role) => () => setActiveRole(role);
 
@@ -303,57 +246,11 @@ export default function AppSupabase() {
         }
     };
 
-    const publishActiveRole = async () => {
-        if (!currentDatasetId || !activeRole) return;
-        const draftSet = draftSelectionsByRole.get(activeRole) || new Set();
-        const applicantIds = [...draftSet];
-        setPublishing(true);
-        setImportError(null);
-        try {
-            await publishRoleSelections(
-                currentDatasetId,
-                activeRole,
-                applicantIds
-            );
-            // Always refresh from DB after publish (realtime may be disabled/misconfigured).
-            const nextPublished = await loadPublishedSelections(currentDatasetId);
-            setPublishedSelectionsByRole(nextPublished);
-        } catch (e) {
-            setImportError(formatError(e));
-        } finally {
-            setPublishing(false);
-        }
-    };
-
-    const clearPublishedSelections = async () => {
-        if (!currentDatasetId) return;
-        if (!supabase) return;
-        setClearingPublished(true);
-        setImportError(null);
-        try {
-            const { error } = await supabase
-                .from("published_selections")
-                .delete()
-                .eq("dataset_id", currentDatasetId);
-            if (error) throw error;
-
-            // Keep current dataset and drafts; just clear global published state.
-            setPublishedSelectionsByRole(emptyMap());
-        } catch (e) {
-            setImportError(formatError(e));
-        } finally {
-            setClearingPublished(false);
-        }
-    };
-
     const draftActiveSet =
         draftSelectionsByRole.get(activeRole) || new Set();
-    const publishedActiveSet =
-        publishedSelectionsByRole.get(activeRole) || new Set();
 
     function getCardBorderColor(applicantId) {
-        if (publishedActiveSet.has(applicantId)) return "green.400";
-        if (publishedApplicantIds.has(applicantId)) return "red.400";
+        if (draftActiveSet.has(applicantId)) return "blue.400";
         return "#a100ff";
     }
 
@@ -399,22 +296,6 @@ export default function AppSupabase() {
                     <Heading size="xl" color={COLORS[1]}>
                         CTC Board Deliberations
                     </Heading>
-
-                    {showBoard && (
-                        <Button
-                            colorScheme="red"
-                            variant="outline"
-                            onClick={clearPublishedSelections}
-                            isLoading={clearingPublished}
-                            disabled={
-                                !isSupabaseReady ||
-                                clearingPublished ||
-                                importing
-                            }
-                        >
-                            Clear Published
-                        </Button>
-                    )}
                 </Flex>
 
                 {!isSupabaseReady && (
@@ -448,10 +329,6 @@ export default function AppSupabase() {
                                     const draftSet =
                                         draftSelectionsByRole.get(role) ||
                                         new Set();
-                                    const publishedSet =
-                                        publishedSelectionsByRole.get(role) ||
-                                        new Set();
-
                                     return (
                                         <Card
                                             key={role}
@@ -548,45 +425,6 @@ export default function AppSupabase() {
                                                     </>
                                                 )}
 
-                                                {publishedSet.size > 0 && (
-                                                    <>
-                                                        <Text
-                                                            fontWeight="bold"
-                                                            color="green.600"
-                                                            mt={4}
-                                                            mb={2}
-                                                        >
-                                                            Published
-                                                        </Text>
-                                                        <VStack
-                                                            spacing={0}
-                                                            align="stretch"
-                                                        >
-                                                            {[...publishedSet].map(
-                                                                (applicantId) => (
-                                                                    <Box
-                                                                        key={applicantId}
-                                                                        p={2}
-                                                                        m={0}
-                                                                        bg="green.50"
-                                                                        border="1px solid"
-                                                                        borderColor="green.300"
-                                                                        borderRadius={10}
-                                                                        margin={15}
-                                                                    >
-                                                                        <Text userSelect="none">
-                                                                            {
-                                                                                applicantsById.get(
-                                                                                    applicantId
-                                                                                ) || "Unknown"
-                                                                            }
-                                                                        </Text>
-                                                                    </Box>
-                                                                )
-                                                            )}
-                                                        </VStack>
-                                                    </>
-                                                )}
                                             </CardBody>
                                         </Card>
                                     );
@@ -604,19 +442,6 @@ export default function AppSupabase() {
                                     {activeRole + " Applicants"}
                                 </Heading>
 
-                                <Button
-                                    colorScheme="green"
-                                    mb={4}
-                                    onClick={publishActiveRole}
-                                    isLoading={publishing}
-                                    disabled={
-                                        draftActiveSet.size === 0 ||
-                                        !activeRole ||
-                                        !currentDatasetId
-                                    }
-                                >
-                                    Publish Selected
-                                </Button>
                             </Flex>
 
                             <Flex
@@ -629,9 +454,6 @@ export default function AppSupabase() {
                                 {candidates.map((applicant) => {
                                     const isDraftSelected =
                                         draftActiveSet.has(applicant.id);
-                                    const isPublishedSelected =
-                                        publishedActiveSet.has(applicant.id);
-
                                     return (
                                         <Box
                                             position="relative"
@@ -678,20 +500,13 @@ export default function AppSupabase() {
                                                     >
                                                         {applicant.name}
                                                     </Heading>
-                                                    {(isPublishedSelected ||
-                                                        isDraftSelected) && (
+                                                    {isDraftSelected && (
                                                         <Text
                                                             mt={2}
                                                             fontSize="sm"
-                                                            color={
-                                                                isPublishedSelected
-                                                                    ? "green.600"
-                                                                    : "blue.600"
-                                                            }
+                                                            color="blue.600"
                                                         >
-                                                            {isPublishedSelected
-                                                                ? "Published"
-                                                                : "Draft"}
+                                                            Draft
                                                         </Text>
                                                     )}
                                                 </CardHeader>
