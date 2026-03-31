@@ -43,10 +43,6 @@ function normalizeHeaderCell(cell) {
     return (cell ?? "").toString().trim();
 }
 
-function headerEquals(a, b) {
-    return normalizeHeaderCell(a).toLowerCase() === normalizeHeaderCell(b).toLowerCase();
-}
-
 function findHeaderIndexCaseInsensitive(headerRow, desired) {
     const desiredNorm = normalizeHeaderCell(desired).toLowerCase();
     if (!desiredNorm) return -1;
