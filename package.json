@@ -4,8 +4,10 @@
   "private": true,
   "dependencies": {
     "@chakra-ui/react": "^2.10.7",
+    "@chakra-ui/utils": "^2.2.4",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
+    "@supabase/supabase-js": "^2.45.4",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.2.0",
@@ -29,6 +31,11 @@
       "react-app",
       "react-app/jest"
     ]
+  },
+  "jest": {
+    "moduleNameMapper": {
+      "^@chakra-ui/utils/context$": "<rootDir>/node_modules/@chakra-ui/utils/dist/cjs/context.cjs"
+    }
   },
   "browserslist": {
     "production": [

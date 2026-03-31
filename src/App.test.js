@@ -1,8 +1,13 @@
-import { render, screen } from '@testing-library/react';
-import App from './App';
+import { render, screen } from "@testing-library/react";
+import { ChakraProvider } from "@chakra-ui/react";
+import App from "./AppSupabase";
 
-test('renders learn react link', () => {
-  render(<App />);
-  const linkElement = screen.getByText(/learn react/i);
-  expect(linkElement).toBeInTheDocument();
+test("renders the CTC Board Deliberations heading", () => {
+    render(
+        <ChakraProvider>
+            <App />
+        </ChakraProvider>
+    );
+    const headingElement = screen.getByText(/CTC Board Deliberations/i);
+    expect(headingElement).toBeInTheDocument();
 });
